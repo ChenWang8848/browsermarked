@@ -82,19 +82,18 @@ const Highlighter = {
   /**
    * 重新渲染所有高亮（用于窗口大小改变时更新位置）
    */
-  refreshAll() {
-    const ids = [...this._overlays.keys()];
-    this.clearAll();
+  async refreshAll() {
     try {
-      BMStore.getByUrl(window.location.href).then((annotations) => {
-        for (const ann of annotations) {
-          if (ids.includes(ann.id)) {
-            this.renderOne(ann);
-          }
+      const annotations = await BMStore.getByUrl(window.location.href);
+      // 先拿到数据，再清除旧覆盖层并重建
+      this.clearAll();
+      for (const ann of annotations) {
+        if (ann.type === 'highlight' || ann.type === 'note') {
+          this.renderOne(ann);
         }
-      }).catch(() => {});
+      }
     } catch (e) {
-      // Storage 不可用，静默跳过
+      // Storage 不可用，保持现有覆盖层不变
     }
   },
 

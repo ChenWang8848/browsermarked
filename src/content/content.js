@@ -162,9 +162,15 @@
   // ----- 选区处理 -----
   function handleTextSelection(e) {
     setTimeout(() => {
-      // 忽略在工具栏或注释弹窗内的点击
-      if (shadowHost.contains(document.activeElement)) return;
-      if (e.target.closest && e.target.closest('#browsermarked-host')) return;
+      // 用 composedPath 检查点击是否在 Shadow DOM UI 内
+      if (e.composedPath) {
+        const path = e.composedPath();
+        if (shadowRoot) {
+          const ui = shadowRoot.querySelector('.bm-toolbar');
+          const note = shadowRoot.querySelector('.bm-note-popup');
+          if ((ui && path.includes(ui)) || (note && path.includes(note))) return;
+        }
+      }
 
       const selection = window.getSelection();
       if (!selection || selection.isCollapsed) {

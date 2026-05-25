@@ -5,6 +5,7 @@ const Toolbar = {
   _notePopup: null,
   _container: null,
   _currentSelection: null,
+  _lastRects: null,
   _onAction: null, // callback(action, data)
 
   HIGHLIGHT_COLORS: [
@@ -108,22 +109,22 @@ const Toolbar = {
   },
 
   _bindEvents() {
-    // 点击别处关闭
+    // 点击别处关闭 — 用 composedPath 穿透 Shadow DOM
     document.addEventListener('mousedown', (e) => {
       if (!this._el || !this._notePopup) return;
+      const path = e.composedPath();
       const clickedInside =
-        this._el.contains(e.target) ||
-        this._notePopup.contains(e.target);
+        path.includes(this._el) ||
+        path.includes(this._notePopup);
       if (!clickedInside) {
         this.hide();
-        this._hideNotePopup();
       }
     });
 
     // 滚动/缩放时更新位置
     window.addEventListener('scroll', () => {
-      if (this._el && !this._el.classList.contains('hidden')) {
-        this._positionToolbar();
+      if (this._el && !this._el.classList.contains('hidden') && this._lastRects) {
+        this._positionToolbar(this._lastRects);
       }
     }, { passive: true });
   },
@@ -131,8 +132,14 @@ const Toolbar = {
   show(selectionData) {
     if (!this._el) return;
     this._currentSelection = selectionData;
+
+    // 捕获当前选区的盒模型，避免在 _positionToolbar 中重复 query 选区
+    const sel = window.getSelection();
+    if (!sel || sel.isCollapsed || !sel.rangeCount) return;
+    this._lastRects = sel.getRangeAt(0).getClientRects();
+
     this._el.classList.remove('hidden');
-    this._positionToolbar();
+    this._positionToolbar(this._lastRects);
   },
 
   hide() {
@@ -158,21 +165,17 @@ const Toolbar = {
     }
   },
 
-  _positionToolbar() {
-    const selection = window.getSelection();
-    if (!selection || selection.isCollapsed) return;
+  _positionToolbar(rects) {
+    if (!rects || rects.length === 0) return;
+    const rect = rects[0];
 
-    const range = selection.getRangeAt(0);
-    const rect = range.getBoundingClientRect();
-    const toolbarHeight = 40;
-
+    const toolbarHeight = this._el.offsetHeight || 40;
     let top = rect.top + window.scrollY - toolbarHeight - 8;
     if (top < window.scrollY) {
       top = rect.bottom + window.scrollY + 8;
     }
 
     let left = rect.left + window.scrollX + rect.width / 2;
-    // 边界检查
     const toolbarWidth = this._el.offsetWidth || 300;
     if (left - toolbarWidth / 2 < window.scrollX) {
       left = window.scrollX + toolbarWidth / 2;
