@@ -17,8 +17,11 @@ Browsermarked — Chrome 浏览器扩展 (Manifest V3)，在网页上高亮文�
 git init
 
 # 提交代码
-git add -A
+git add <files>
 git commit -m "..."
+
+# 推送到 GitHub
+git push origin master
 ```
 
 **加载扩展**：Chrome → `chrome://extensions/` → 开启"开发者模式" → "加载已解压的扩展程序" → 选择 `browsermarked/` 目录。
