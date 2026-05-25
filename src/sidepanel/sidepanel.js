@@ -32,7 +32,7 @@
       allAnnotations = resp.data || [];
     } catch {
       // 直接读 storage
-      allAnnotations = await Storage.getAll();
+      allAnnotations = await BMStore.getAll();
     }
   }
 
@@ -178,7 +178,7 @@
           try {
             await chrome.runtime.sendMessage({ action: 'deleteByDomain', domain });
           } catch {
-            await Storage.removeByDomain(domain);
+            await BMStore.removeByDomain(domain);
           }
           await loadData();
           render();
@@ -203,7 +203,7 @@
         try {
           await chrome.runtime.sendMessage({ action: 'deleteAnnotation', id });
         } catch {
-          await Storage.remove(id);
+          await BMStore.remove(id);
         }
         await loadData();
         render();

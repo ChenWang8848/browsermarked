@@ -1,5 +1,5 @@
 // Chrome Storage 封装 — 所有标注数据的持久化层
-const Storage = {
+const BMStore = {
   _KEY: 'browsermarked_annotations',
 
   async _readAll() {

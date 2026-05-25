@@ -14,7 +14,7 @@ const Highlighter = {
   async renderAll() {
     this.clearAll();
     try {
-      const annotations = await Storage.getByUrl(window.location.href);
+      const annotations = await BMStore.getByUrl(window.location.href);
       for (const ann of annotations) {
         if (ann.type === 'highlight' || ann.type === 'note') {
           this.renderOne(ann);
@@ -86,7 +86,7 @@ const Highlighter = {
     const ids = [...this._overlays.keys()];
     this.clearAll();
     try {
-      Storage.getByUrl(window.location.href).then((annotations) => {
+      BMStore.getByUrl(window.location.href).then((annotations) => {
         for (const ann of annotations) {
           if (ids.includes(ann.id)) {
             this.renderOne(ann);

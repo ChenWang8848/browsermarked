@@ -261,7 +261,7 @@
       }
 
       // 主路径：直接写 storage（不依赖 Service Worker 存活）
-      Storage.save(annotation).catch(() => {});
+      BMStore.save(annotation).catch(() => {});
 
       // 次路径：通知 Background 更新（允许静默失败）
       chrome.runtime.sendMessage({

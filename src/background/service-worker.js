@@ -42,48 +42,48 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
 async function handleMessage(msg, sender) {
   switch (msg.action) {
     case 'saveAnnotation':
-      await Storage.save(msg.annotation);
+      await BMStore.save(msg.annotation);
       return { ok: true, id: msg.annotation.id };
 
     case 'getAnnotations':
-      return { ok: true, data: await Storage.getAll() };
+      return { ok: true, data: await BMStore.getAll() };
 
     case 'getAnnotationsByUrl': {
-      const items = await Storage.getByUrl(msg.url);
+      const items = await BMStore.getByUrl(msg.url);
       return { ok: true, data: items };
     }
 
     case 'getAnnotationsByDomain': {
-      const items = await Storage.getByDomain(msg.domain);
+      const items = await BMStore.getByDomain(msg.domain);
       return { ok: true, data: items };
     }
 
     case 'deleteAnnotation':
-      await Storage.remove(msg.id);
+      await BMStore.remove(msg.id);
       return { ok: true };
 
     case 'deleteByUrl':
-      await Storage.removeByUrl(msg.url);
+      await BMStore.removeByUrl(msg.url);
       return { ok: true };
 
     case 'deleteByDomain':
-      await Storage.removeByDomain(msg.domain);
+      await BMStore.removeByDomain(msg.domain);
       return { ok: true };
 
     case 'getDomains':
-      return { ok: true, data: await Storage.getDomains() };
+      return { ok: true, data: await BMStore.getDomains() };
 
     case 'getAllTags':
-      return { ok: true, data: await Storage.getAllTags() };
+      return { ok: true, data: await BMStore.getAllTags() };
 
     case 'search':
-      return { ok: true, data: await Storage.search(msg.query) };
+      return { ok: true, data: await BMStore.search(msg.query) };
 
     case 'exportData':
-      return { ok: true, data: await Storage.exportAll() };
+      return { ok: true, data: await BMStore.exportAll() };
 
     case 'importData': {
-      const count = await Storage.importAll(msg.json);
+      const count = await BMStore.importAll(msg.json);
       return { ok: true, count };
     }
 
@@ -114,7 +114,7 @@ async function bookmarkPage(tab) {
       tags: [],
     };
 
-    await Storage.save(annotation);
+    await BMStore.save(annotation);
   } catch (e) {
     // 静默失败
   }
