@@ -45,6 +45,9 @@ async function handleMessage(msg, sender) {
       await BMStore.save(msg.annotation);
       return { ok: true, id: msg.annotation.id };
 
+    case 'updateAnnotation':
+      await BMStore.save(msg.annotation);
+      return { ok: true };
     case 'getAnnotations':
       return { ok: true, data: await BMStore.getAll() };
 
@@ -85,6 +88,22 @@ async function handleMessage(msg, sender) {
     case 'importData': {
       const count = await BMStore.importAll(msg.json);
       return { ok: true, count };
+    }
+
+    case 'getConfig':
+      return { ok: true, data: await BMStore.getConfig() };
+
+    case 'saveConfig': {
+      await BMStore.saveConfig(msg.config);
+      // 广播到所有标签页
+      const tabs = await chrome.tabs.query({});
+      for (const tab of tabs) {
+        chrome.tabs.sendMessage(tab.id, {
+          action: 'configUpdated',
+          config: msg.config,
+        }).catch(() => {});
+      }
+      return { ok: true };
     }
 
     default:

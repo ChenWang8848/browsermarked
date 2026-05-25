@@ -18,6 +18,11 @@
   const exportBtn = document.getElementById('exportBtn');
   const importBtn = document.getElementById('importBtn');
   const importFile = document.getElementById('importFile');
+  const settingsBtn = document.getElementById('settingsBtn');
+  const settingsPanel = document.getElementById('settingsPanel');
+  const customColorsContainer = document.getElementById('customColorsContainer');
+  const resetColorsBtn = document.getElementById('resetColorsBtn');
+  const saveColorsBtn = document.getElementById('saveColorsBtn');
 
   // ===== Init =====
   async function init() {
@@ -62,6 +67,15 @@
     exportBtn.addEventListener('click', handleExport);
     importBtn.addEventListener('click', () => importFile.click());
     importFile.addEventListener('change', handleImport);
+
+    // 设置面板
+    settingsBtn.addEventListener('click', () => {
+      const isHidden = settingsPanel.classList.contains('hidden');
+      settingsPanel.classList.toggle('hidden');
+      if (isHidden) loadCustomColorsUI();
+    });
+    resetColorsBtn.addEventListener('click', handleResetColors);
+    saveColorsBtn.addEventListener('click', handleSaveColors);
 
     // 点击页面其他区域关闭确认弹窗
     document.addEventListener('click', (e) => {
@@ -189,7 +203,9 @@
 
     contentEl.querySelectorAll('.sp-item').forEach((itemEl) => {
       itemEl.addEventListener('click', (e) => {
-        if (e.target.dataset.action === 'delete-item') return;
+        const action = e.target.dataset.action;
+        if (action === 'delete-item' || action === 'edit-item' ||
+            action === 'save-edit' || action === 'cancel-edit') return;
         const id = itemEl.dataset.id;
         const annotation = allAnnotations.find((a) => a.id === id);
         if (annotation) navigateToAnnotation(annotation);
@@ -210,6 +226,89 @@
         showToast('已删除');
       });
     });
+
+    // 编辑 / 保存 / 取消
+    contentEl.querySelectorAll('[data-action="edit-item"]').forEach((btn) => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const id = btn.dataset.id;
+        const annotation = allAnnotations.find(a => a.id === id);
+        if (annotation) {
+          annotation._editing = true;
+          render();
+        }
+      });
+    });
+
+    contentEl.querySelectorAll('[data-action="cancel-edit"]').forEach((btn) => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const id = btn.dataset.id;
+        const annotation = allAnnotations.find(a => a.id === id);
+        if (annotation) {
+          annotation._editing = false;
+          render();
+        }
+      });
+    });
+
+    contentEl.querySelectorAll('[data-action="save-edit"]').forEach((btn) => {
+      btn.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        const id = btn.dataset.id;
+        const annotation = allAnnotations.find(a => a.id === id);
+        if (!annotation) return;
+
+        const itemEl = btn.closest('.sp-item');
+        const noteEl = itemEl.querySelector('.sp-edit-note');
+        const tagsEl = itemEl.querySelector('.sp-edit-tags');
+        const activeColor = itemEl.querySelector('.sp-edit-color-btn.active');
+
+        const updated = {
+          ...annotation,
+          note: noteEl ? noteEl.value.trim() : annotation.note,
+          tags: tagsEl
+            ? tagsEl.value.split(',').map(t => t.trim()).filter(Boolean)
+            : annotation.tags,
+          color: activeColor ? activeColor.dataset.color : annotation.color,
+          _editing: false,
+        };
+
+        try {
+          await chrome.runtime.sendMessage({
+            action: 'updateAnnotation',
+            annotation: updated,
+          });
+        } catch {
+          await BMStore.save(updated);
+        }
+
+        // 通知页面更新高亮
+        try {
+          const tabs = await chrome.tabs.query({ url: updated.url });
+          for (const tab of tabs) {
+            chrome.tabs.sendMessage(tab.id, {
+              action: 'annotationUpdated',
+              annotation: updated,
+            }).catch(() => {});
+          }
+        } catch {}
+
+        Object.assign(annotation, updated);
+        render();
+        showToast('已更新');
+      });
+    });
+
+    // 编辑态颜色选择
+    contentEl.querySelectorAll('.sp-edit-color-btn').forEach((swatch) => {
+      swatch.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const parent = swatch.closest('.sp-edit-colors');
+        parent.querySelectorAll('.sp-edit-color-btn').forEach(s => s.classList.remove('active'));
+        swatch.classList.add('active');
+      });
+    });
   }
 
   function renderItem(item) {
@@ -217,8 +316,15 @@
     const typeClass = item.type;
     const date = new Date(item.createdAt);
     const dateStr = formatDate(date);
-    const domain = item.domain || '';
 
+    if (item._editing) {
+      return renderItemEditMode(item, typeIcon, typeClass);
+    }
+
+    return renderItemDisplayMode(item, typeIcon, typeClass, dateStr);
+  }
+
+  function renderItemDisplayMode(item, typeIcon, typeClass, dateStr) {
     let textHtml = '';
     if (item.text) {
       const text = item.text.length > 100 ? item.text.slice(0, 100) + '...' : item.text;
@@ -252,7 +358,35 @@
             ${tagsHtml ? `<div class="sp-item-tags">${tagsHtml}</div>` : ''}
           </div>
         </div>
-        <button class="sp-item-delete" data-action="delete-item" data-id="${item.id}" title="删除">&times;</button>
+        <div class="sp-item-actions">
+          <button class="sp-item-edit" data-action="edit-item" data-id="${item.id}" title="编辑">&#9998;</button>
+          <button class="sp-item-delete" data-action="delete-item" data-id="${item.id}" title="删除">&times;</button>
+        </div>
+      </div>
+    `;
+  }
+
+  function renderItemEditMode(item, typeIcon, typeClass) {
+    const editColors = [
+      '#EF5350', '#FF9800', '#FFEB3B', '#66BB6A', '#42A5F5',
+    ];
+    const colorSwatches = editColors.map(c =>
+      `<span class="sp-edit-color-btn${item.color === c ? ' active' : ''}"
+             data-color="${c}" style="background:${c}"></span>`
+    ).join('');
+
+    return `
+      <div class="sp-item editing" data-id="${item.id}">
+        <div class="sp-item-type ${typeClass}">${typeIcon}</div>
+        <div class="sp-item-body">
+          <div class="sp-edit-colors">${colorSwatches}</div>
+          <textarea class="sp-edit-note" placeholder="注释内容">${escapeHtml(item.note || '')}</textarea>
+          <input class="sp-edit-tags" value="${escapeHtml((item.tags || []).join(', '))}" placeholder="标签 (逗号分隔)">
+        </div>
+        <div class="sp-item-actions">
+          <button class="sp-item-save" data-action="save-edit" data-id="${item.id}" title="保存">&#10003;</button>
+          <button class="sp-item-cancel" data-action="cancel-edit" data-id="${item.id}" title="取消">&#10005;</button>
+        </div>
       </div>
     `;
   }
@@ -284,6 +418,52 @@
         render();
       });
     });
+  }
+
+  // ===== Settings / Custom Colors =====
+  async function loadCustomColorsUI() {
+    let colors = await BMStore.getCustomColors();
+    if (!colors) {
+      colors = ['#FFEB3B', '#A5D6A7', '#90CAF9', '#F48FB1', '#FFCC80'];
+    }
+
+    customColorsContainer.innerHTML = colors.map((c, i) => `
+      <div class="sp-custom-color-item">
+        <input type="color" value="${c}" data-index="${i}">
+        <span>颜色 ${i + 1}</span>
+      </div>
+    `).join('');
+  }
+
+  async function handleResetColors() {
+    await BMStore.resetCustomColors();
+    await loadCustomColorsUI();
+    notifyConfigChange(null);
+    showToast('已恢复默认配色');
+  }
+
+  async function handleSaveColors() {
+    const inputs = customColorsContainer.querySelectorAll('input[type="color"]');
+    const colors = Array.from(inputs).map(input => input.value);
+    await BMStore.setCustomColors(colors);
+    notifyConfigChange(colors);
+    showToast('配色方案已保存');
+  }
+
+  async function notifyConfigChange(customColors) {
+    const config = { customColors };
+    try {
+      await chrome.runtime.sendMessage({ action: 'saveConfig', config });
+    } catch {
+      // 直接通知所有标签页
+      const tabs = await chrome.tabs.query({});
+      for (const tab of tabs) {
+        chrome.tabs.sendMessage(tab.id, {
+          action: 'configUpdated',
+          config,
+        }).catch(() => {});
+      }
+    }
   }
 
   // ===== Navigation =====

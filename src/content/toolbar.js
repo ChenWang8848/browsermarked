@@ -8,7 +8,7 @@ const Toolbar = {
   _lastRects: null,
   _onAction: null, // callback(action, data)
 
-  HIGHLIGHT_COLORS: [
+  DEFAULT_COLORS: [
     { name: 'yellow', color: '#FFEB3B' },
     { name: 'green', color: '#A5D6A7' },
     { name: 'blue', color: '#90CAF9' },
@@ -16,22 +16,43 @@ const Toolbar = {
     { name: 'orange', color: '#FFCC80' },
   ],
 
-  init(container, onAction) {
+  HIGHLIGHT_COLORS: [],
+
+  async init(container, onAction) {
     this._container = container;
     this._onAction = onAction;
+    await this._loadColors();
     this._buildToolbar();
     this._buildNotePopup();
     this._bindEvents();
+  },
+
+  async _loadColors() {
+    try {
+      const config = await BMStore.getConfig();
+      if (config.customColors && Array.isArray(config.customColors) && config.customColors.length === 5) {
+        this.HIGHLIGHT_COLORS = config.customColors.map((c, i) => ({
+          name: this.DEFAULT_COLORS[i]?.name || `color-${i + 1}`,
+          color: c,
+        }));
+      } else {
+        this.HIGHLIGHT_COLORS = [...this.DEFAULT_COLORS];
+      }
+    } catch {
+      this.HIGHLIGHT_COLORS = [...this.DEFAULT_COLORS];
+    }
   },
 
   _buildToolbar() {
     const el = document.createElement('div');
     el.className = 'bm-toolbar hidden';
     el.innerHTML = `
-      ${this.HIGHLIGHT_COLORS.map((c, i) =>
-        `<span class="bm-color-btn" data-color="${c.color}" data-color-name="${c.name}"
-              style="background:${c.color}" title="高亮 - ${c.name}"></span>`
-      ).join('')}
+      <div class="bm-toolbar-colors">
+        ${this.HIGHLIGHT_COLORS.map((c, i) =>
+          `<span class="bm-color-btn" data-color="${c.color}" data-color-name="${c.name}"
+                style="background:${c.color}" title="高亮 - ${c.name}"></span>`
+        ).join('')}
+      </div>
       <span class="bm-toolbar-divider"></span>
       <button class="bm-action-btn" data-action="note" title="添加注释">添加注释</button>
       <button class="bm-action-btn primary" data-action="bookmark" title="收藏此页">收藏页面</button>
@@ -39,10 +60,16 @@ const Toolbar = {
     this._container.appendChild(el);
     this._el = el;
 
-    // 颜色按钮事件
-    el.querySelectorAll('.bm-color-btn').forEach((btn) => {
+    this._bindColorButtonEvents();
+    this._bindActionButtonEvents();
+  },
+
+  _bindColorButtonEvents() {
+    this._el.querySelectorAll('.bm-color-btn').forEach((btn) => {
       btn.addEventListener('click', (e) => {
         e.stopPropagation();
+        this._el.querySelectorAll('.bm-color-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
         this._onAction('highlight', {
           color: btn.dataset.color,
           selection: this._currentSelection,
@@ -50,9 +77,10 @@ const Toolbar = {
         this.hide();
       });
     });
+  },
 
-    // 操作按钮事件
-    el.querySelectorAll('.bm-action-btn').forEach((btn) => {
+  _bindActionButtonEvents() {
+    this._el.querySelectorAll('.bm-action-btn').forEach((btn) => {
       btn.addEventListener('click', (e) => {
         e.stopPropagation();
         const action = btn.dataset.action;
@@ -66,10 +94,39 @@ const Toolbar = {
     });
   },
 
+  _rebuildColorButtons() {
+    const container = this._el?.querySelector('.bm-toolbar-colors');
+    if (!container) return;
+    container.innerHTML = this.HIGHLIGHT_COLORS.map((c, i) =>
+      `<span class="bm-color-btn" data-color="${c.color}" data-color-name="${c.name}"
+            style="background:${c.color}" title="高亮 - ${c.name}"></span>`
+    ).join('');
+    this._bindColorButtonEvents();
+  },
+
+  handleConfigUpdate(config) {
+    if (config.customColors && Array.isArray(config.customColors) && config.customColors.length === 5) {
+      this.HIGHLIGHT_COLORS = config.customColors.map((c, i) => ({
+        name: this.DEFAULT_COLORS[i]?.name || `color-${i + 1}`,
+        color: c,
+      }));
+    } else {
+      this.HIGHLIGHT_COLORS = [...this.DEFAULT_COLORS];
+    }
+    this._rebuildColorButtons();
+    this._rebuildNoteColors();
+  },
+
   _buildNotePopup() {
     const popup = document.createElement('div');
     popup.className = 'bm-note-popup hidden';
     popup.innerHTML = `
+      <div class="bm-note-colors">
+        ${this.HIGHLIGHT_COLORS.map((c, i) =>
+          `<span class="bm-note-color-btn${i === 0 ? ' active' : ''}"
+                data-color="${c.color}" style="background:${c.color}"></span>`
+        ).join('')}
+      </div>
       <textarea placeholder="输入注释内容..."></textarea>
       <input type="text" placeholder="添加标签 (用逗号分隔)" />
       <div class="bm-note-actions">
@@ -79,6 +136,13 @@ const Toolbar = {
     `;
     this._container.appendChild(popup);
     this._notePopup = popup;
+
+    popup.querySelectorAll('.bm-note-color-btn').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        popup.querySelectorAll('.bm-note-color-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+      });
+    });
 
     popup.querySelector('.cancel').addEventListener('click', (e) => {
       e.stopPropagation();
@@ -96,15 +160,36 @@ const Toolbar = {
 
       if (!note) return;
 
+      const activeColorBtn = popup.querySelector('.bm-note-color-btn.active');
+      const color = activeColorBtn ? activeColorBtn.dataset.color : this.DEFAULT_COLORS[0].color;
+
       this._onAction('note', {
         note,
         tags,
+        color,
         selection: this._currentSelection,
       });
       textarea.value = '';
       tagInput.value = '';
       this._hideNotePopup();
       this.hide();
+    });
+  },
+
+  _rebuildNoteColors() {
+    const popup = this._notePopup;
+    if (!popup) return;
+    const container = popup.querySelector('.bm-note-colors');
+    if (!container) return;
+    container.innerHTML = this.HIGHLIGHT_COLORS.map((c, i) =>
+      `<span class="bm-note-color-btn${i === 0 ? ' active' : ''}"
+            data-color="${c.color}" style="background:${c.color}"></span>`
+    ).join('');
+    container.querySelectorAll('.bm-note-color-btn').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        container.querySelectorAll('.bm-note-color-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+      });
     });
   },
 
@@ -145,6 +230,7 @@ const Toolbar = {
   hide() {
     if (this._el) {
       this._el.classList.add('hidden');
+      this._el.querySelectorAll('.bm-color-btn.active').forEach(b => b.classList.remove('active'));
     }
     this._currentSelection = null;
     this._hideNotePopup();

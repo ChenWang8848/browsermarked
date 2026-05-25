@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Browsermarked",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "网页标注、注释与收藏工具 — 高亮文本、添加笔记、收藏页面，侧边栏统一管理。",
   "permissions": [
     "storage",

@@ -30,7 +30,20 @@
     <div class="sp-actions">
       <button id="exportBtn" class="sp-btn" title="导出所有标注">导出</button>
       <button id="importBtn" class="sp-btn" title="导入标注数据">导入</button>
+      <button id="settingsBtn" class="sp-btn" title="自定义颜色">调色板</button>
       <input type="file" id="importFile" accept=".json" class="hidden">
+    </div>
+  </div>
+
+  <div id="settingsPanel" class="sp-settings hidden">
+    <h3>自定义高亮颜色</h3>
+    <p class="sp-settings-hint">点击色块自定义颜色，共 5 个</p>
+    <div id="customColorsContainer" class="sp-custom-colors">
+      <!-- 5 color inputs -->
+    </div>
+    <div class="sp-settings-actions">
+      <button id="resetColorsBtn" class="sp-btn">恢复默认</button>
+      <button id="saveColorsBtn" class="sp-btn sp-btn-primary">保存方案</button>
     </div>
   </div>
 

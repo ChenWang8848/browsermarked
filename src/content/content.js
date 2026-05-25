@@ -4,7 +4,7 @@
   let shadowHost = null;
   let shadowRoot = null;
 
-  function init() {
+  async function init() {
     // 创建 Shadow DOM 宿主
     shadowHost = document.createElement('div');
     shadowHost.id = 'browsermarked-host';
@@ -45,6 +45,11 @@
         transition: transform 0.12s, border-color 0.12s; flex-shrink: 0;
       }
       .bm-color-btn:hover { transform: scale(1.2); }
+      .bm-color-btn.active {
+        border-color: #333;
+        transform: scale(1.3);
+        box-shadow: 0 0 0 2px rgba(0,0,0,0.15);
+      }
       .bm-action-btn {
         height: 28px; padding: 0 10px; border: 1px solid #e0e0e0;
         border-radius: 5px; background: #fafafa; cursor: pointer;
@@ -57,6 +62,9 @@
       .bm-toolbar-divider {
         width: 1px; height: 18px; background: #e0e0e0; margin: 0 2px;
       }
+      .bm-toolbar-colors {
+        display: flex; gap: 6px; align-items: center;
+      }
       .bm-note-popup {
         position: absolute; z-index: 2147483647; background: #fff;
         border: 1px solid #ddd; border-radius: 8px;
@@ -65,6 +73,27 @@
         font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
       }
       .bm-note-popup.hidden { display: none; }
+      .bm-note-colors {
+        display: flex;
+        gap: 5px;
+        margin-bottom: 8px;
+        flex-wrap: wrap;
+      }
+      .bm-note-color-btn {
+        width: 18px;
+        height: 18px;
+        border-radius: 50%;
+        border: 2px solid transparent;
+        cursor: pointer;
+        transition: transform 0.12s, border-color 0.12s;
+        flex-shrink: 0;
+      }
+      .bm-note-color-btn:hover { transform: scale(1.2); }
+      .bm-note-color-btn.active {
+        border-color: #333;
+        transform: scale(1.25);
+        box-shadow: 0 0 0 2px rgba(255,255,255,0.8);
+      }
       .bm-note-popup textarea {
         width: 100%; height: 60px; border: 1px solid #e0e0e0;
         border-radius: 5px; padding: 6px 8px; font-size: 13px;
@@ -94,6 +123,17 @@
         0%, 100% { filter: brightness(1); }
         50% { filter: brightness(1.3); }
       }
+      .bm-hover-tooltip {
+        position: absolute; z-index: 2147483647; background: #fff;
+        border: 1px solid #e0e0e0; border-radius: 8px;
+        box-shadow: 0 4px 16px rgba(0,0,0,0.15); padding: 8px 12px;
+        max-width: 280px;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        pointer-events: none; transition: opacity 0.12s;
+      }
+      .bm-hover-tooltip.hidden { display: none; }
+      .bm-tooltip-note { font-size: 13px; color: #333; line-height: 1.4; word-wrap: break-word; }
+      .bm-tooltip-meta { font-size: 11px; color: #80868b; margin-top: 4px; padding-top: 4px; border-top: 1px solid #f0f0f0; }
     `;
     shadowRoot.appendChild(style);
 
@@ -107,8 +147,7 @@
     const toolbarContainer = document.createElement('div');
     toolbarContainer.id = 'bm-toolbar-container';
     shadowRoot.appendChild(toolbarContainer);
-    Toolbar.init(toolbarContainer, handleToolbarAction);
-
+    await Toolbar.init(toolbarContainer, handleToolbarAction);
     // 监听选区变化
     document.addEventListener('mouseup', handleTextSelection);
 
@@ -209,7 +248,7 @@
       saveAnnotation({
         type: 'note',
         text: data.selection.text,
-        color: '#FFEB3B',
+        color: data.color || '#FFEB3B',
         selectorPath: data.selection.selectorPath,
         startOffset: data.selection.startOffset,
         endOffset: data.selection.endOffset,
@@ -286,6 +325,12 @@
       sendResponse({ ok: true });
     } else if (msg.action === 'refreshHighlights') {
       Highlighter.renderAll();
+      sendResponse({ ok: true });
+    } else if (msg.action === 'configUpdated') {
+      Toolbar.handleConfigUpdate(msg.config);
+      sendResponse({ ok: true });
+    } else if (msg.action === 'annotationUpdated') {
+      Highlighter.updateOne(msg.annotation);
       sendResponse({ ok: true });
     }
   }

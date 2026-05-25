@@ -1,11 +1,26 @@
 // 高亮引擎 — 在页面上渲染和管理标注覆盖层
 
 const Highlighter = {
-  _overlays: new Map(),   // annotationId → array of overlay DOM elements
+  _overlays: new Map(),       // annotationId → array of overlay DOM elements
+  _annotationData: new Map(), // annotationId → annotation object (for hover preview)
+  _tooltipEl: null,
+  _activeTooltipId: null,
   _container: null,
 
   init(container) {
     this._container = container;
+    this._buildTooltip();
+  },
+
+  _buildTooltip() {
+    const tooltip = document.createElement('div');
+    tooltip.className = 'bm-hover-tooltip hidden';
+    tooltip.innerHTML = `
+      <div class="bm-tooltip-note"></div>
+      <div class="bm-tooltip-meta"></div>
+    `;
+    this._container.appendChild(tooltip);
+    this._tooltipEl = tooltip;
   },
 
   /**
@@ -38,6 +53,8 @@ const Highlighter = {
     const color = annotation.color || '#FFEB3B';
 
     const overlays = [];
+    const hasNote = annotation.note && annotation.note.trim();
+
     for (const rect of rects) {
       if (rect.width === 0 || rect.height === 0) continue;
 
@@ -51,11 +68,31 @@ const Highlighter = {
       overlay.style.opacity = '0.35';
       overlay.dataset.annotationId = annotation.id;
 
+      // 有注释时启用悬浮预览
+      if (hasNote) {
+        overlay.style.pointerEvents = 'auto';
+        overlay.style.cursor = 'default';
+        overlay.addEventListener('mouseenter', (e) => this._showTooltip(e, annotation));
+        overlay.addEventListener('mouseleave', () => this._hideTooltip());
+        overlay.addEventListener('mousemove', (e) => this._moveTooltip(e));
+      }
+
       this._container.appendChild(overlay);
       overlays.push(overlay);
     }
 
     this._overlays.set(annotation.id, overlays);
+    this._annotationData.set(annotation.id, annotation);
+  },
+
+  /**
+   * 更新单条标注的高亮（颜色变化时重新渲染）
+   */
+  updateOne(annotation) {
+    this.removeOne(annotation.id);
+    if (annotation.type === 'highlight' || annotation.type === 'note') {
+      this.renderOne(annotation);
+    }
   },
 
   /**
@@ -67,6 +104,7 @@ const Highlighter = {
       overlays.forEach((el) => el.remove());
       this._overlays.delete(id);
     }
+    this._annotationData.delete(id);
   },
 
   /**
@@ -77,6 +115,8 @@ const Highlighter = {
       overlays.forEach((el) => el.remove());
     }
     this._overlays.clear();
+    this._annotationData.clear();
+    this._hideTooltip();
   },
 
   /**
@@ -122,5 +162,70 @@ const Highlighter = {
         });
       }, 1800);
     }, 400);
+  },
+
+  // ===== Hover Preview =====
+  _showTooltip(event, annotation) {
+    if (!annotation.note || !annotation.note.trim()) return;
+    if (this._activeTooltipId === annotation.id) return;
+    this._activeTooltipId = annotation.id;
+
+    const tooltip = this._tooltipEl;
+    if (!tooltip) return;
+
+    const displayNote = annotation.note.length > 200
+      ? annotation.note.slice(0, 200) + '...'
+      : annotation.note;
+
+    tooltip.querySelector('.bm-tooltip-note').textContent = displayNote;
+
+    const metaEl = tooltip.querySelector('.bm-tooltip-meta');
+    if (annotation.tags && annotation.tags.length > 0) {
+      metaEl.textContent = '标签: ' + annotation.tags.join(', ');
+      metaEl.style.display = 'block';
+    } else {
+      metaEl.style.display = 'none';
+    }
+
+    tooltip.classList.remove('hidden');
+    this._positionTooltip(event);
+  },
+
+  _hideTooltip() {
+    if (this._tooltipEl) {
+      this._tooltipEl.classList.add('hidden');
+    }
+    this._activeTooltipId = null;
+  },
+
+  _moveTooltip(event) {
+    if (this._tooltipEl && !this._tooltipEl.classList.contains('hidden')) {
+      this._positionTooltip(event);
+    }
+  },
+
+  _positionTooltip(event) {
+    const tooltip = this._tooltipEl;
+    if (!tooltip) return;
+
+    const scrollX = window.scrollX;
+    const scrollY = window.scrollY;
+    const offsetX = 12;
+    const offsetY = -10;
+    let left = event.clientX + scrollX + offsetX;
+    let top = event.clientY + scrollY + offsetY;
+
+    const tooltipWidth = 220;
+    if (left + tooltipWidth > window.innerWidth + scrollX - 10) {
+      left = event.clientX + scrollX - tooltipWidth - offsetX;
+    }
+
+    const tooltipHeight = tooltip.offsetHeight || 60;
+    if (top < scrollY + 5) {
+      top = event.clientY + scrollY + 20;
+    }
+
+    tooltip.style.left = left + 'px';
+    tooltip.style.top = top + 'px';
   }
 };

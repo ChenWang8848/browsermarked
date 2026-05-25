@@ -1,6 +1,7 @@
 // Chrome Storage 封装 — 所有标注数据的持久化层
 const BMStore = {
   _KEY: 'browsermarked_annotations',
+  _CONFIG_KEY: 'browsermarked_config',
 
   async _readAll() {
     const result = await chrome.storage.local.get(this._KEY);
@@ -9,6 +10,33 @@ const BMStore = {
 
   async _writeAll(items) {
     await chrome.storage.local.set({ [this._KEY]: items });
+  },
+
+  // ===== Config API =====
+  async getConfig() {
+    const result = await chrome.storage.local.get(this._CONFIG_KEY);
+    return result[this._CONFIG_KEY] || {};
+  },
+
+  async saveConfig(config) {
+    await chrome.storage.local.set({ [this._CONFIG_KEY]: config });
+  },
+
+  async getCustomColors() {
+    const config = await this.getConfig();
+    return config.customColors || null;
+  },
+
+  async setCustomColors(colors) {
+    const config = await this.getConfig();
+    config.customColors = colors;
+    await this.saveConfig(config);
+  },
+
+  async resetCustomColors() {
+    const config = await this.getConfig();
+    delete config.customColors;
+    await this.saveConfig(config);
   },
 
   async getAll() {
