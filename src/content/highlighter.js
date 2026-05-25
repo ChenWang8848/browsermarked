@@ -13,11 +13,15 @@ const Highlighter = {
    */
   async renderAll() {
     this.clearAll();
-    const annotations = await Storage.getByUrl(window.location.href);
-    for (const ann of annotations) {
-      if (ann.type === 'highlight' || ann.type === 'note') {
-        this.renderOne(ann);
+    try {
+      const annotations = await Storage.getByUrl(window.location.href);
+      for (const ann of annotations) {
+        if (ann.type === 'highlight' || ann.type === 'note') {
+          this.renderOne(ann);
+        }
       }
+    } catch (e) {
+      // Storage 不可用（扩展 context 失效），静默跳过
     }
   },
 
@@ -81,13 +85,17 @@ const Highlighter = {
   refreshAll() {
     const ids = [...this._overlays.keys()];
     this.clearAll();
-    Storage.getByUrl(window.location.href).then((annotations) => {
-      for (const ann of annotations) {
-        if (ids.includes(ann.id)) {
-          this.renderOne(ann);
+    try {
+      Storage.getByUrl(window.location.href).then((annotations) => {
+        for (const ann of annotations) {
+          if (ids.includes(ann.id)) {
+            this.renderOne(ann);
+          }
         }
-      }
-    });
+      }).catch(() => {});
+    } catch (e) {
+      // Storage 不可用，静默跳过
+    }
   },
 
   /**

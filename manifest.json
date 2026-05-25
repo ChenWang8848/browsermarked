@@ -20,6 +20,7 @@
     {
       "matches": ["<all_urls>"],
       "js": [
+        "src/utils/storage.js",
         "src/utils/dom-path.js",
         "src/content/highlighter.js",
         "src/content/toolbar.js",

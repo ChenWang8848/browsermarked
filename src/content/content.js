@@ -226,8 +226,19 @@
     }
   }
 
+  // ----- 检查扩展上下文是否有效 -----
+  function isContextValid() {
+    try {
+      return !!chrome.runtime?.id;
+    } catch {
+      return false;
+    }
+  }
+
   // ----- 保存标注 -----
   function saveAnnotation(fields) {
+    if (!isContextValid()) return;
+
     const url = window.location.href;
 
     try {
@@ -249,14 +260,14 @@
         Highlighter.renderOne(annotation);
       }
 
-      // 发送给 Background 持久化
+      // 主路径：直接写 storage（不依赖 Service Worker 存活）
+      Storage.save(annotation).catch(() => {});
+
+      // 次路径：通知 Background 更新（允许静默失败）
       chrome.runtime.sendMessage({
         action: 'saveAnnotation',
         annotation,
-      }).catch(() => {
-        // Background 可能未就绪，直接存 storage
-        Storage.save(annotation).catch(() => {});
-      });
+      }).catch(() => {});
     } catch (e) {
       // 静默失败
     }
